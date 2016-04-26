@@ -1,0 +1,142 @@
+#!/usr/bin/expect -f
+
+#****************************************************************************************************************************
+# This is an unpacking script that will try to login into a machine using ssh, unpack a tar.gz file and delete it. 
+# This expect script sets its exit status based on the exit status of the remote command. 
+# 
+# usage: expect -f remote_extract.expect $host $user $pass $file
+#
+# example:
+# expect -f remote_extract.expect myserver.local myuser secret /home/me/my_files.tar.gz
+#
+#****************************************************************************************************************************
+#\---------------------------------------------------------------------------------------------------------------------------
+
+set machine [lindex $argv 0]
+set user [lindex $argv 1]
+set pass [lindex $argv 2]
+set file [lindex $argv 3]
+
+send_user "***************************************************************************************\n"
+send_user "* Expect script starting\n"
+send_user "* Will try to unpack $file on $machine\n"
+send_user "***************************************************************************************\n"
+
+set timeout 10
+
+send_user "***************************************************************************************\n"
+send_user "* Step 1: Logging In \n"
+send_user "***************************************************************************************\n"
+
+# login to the machine ([p] omitted from expect string to be case insensitive)
+spawn ssh $user@$machine
+expect {
+
+	"assword:*\$" {
+		send "$pass\r"
+	}
+	timeout { send_user "\nERROR: Host $machine is not responding to the connection attempt! Exiting!\n" ; exit 1 }
+	eof { send_user "\nERROR: SSH Connection to $machine terminated!\n" ; exit 1 }
+}  
+
+
+expect {
+	# the command prompt ends like this -> '$ ', so we wait for that
+	"\\$ \$" {}
+	"Permission denied*$" {
+		send_user "\nERROR: Wrong credentials supplied for $user@$machine. Cannot connect!\n"
+		exit 1
+	}
+	timeout { send_user "\nERROR: Host $machine is not responding to the connection attempt!\n" ; exit 1 }
+	eof 	{ send_user "\nERROR: SSH Connection to $machine terminated!\n" ; exit 1 }
+
+}
+
+send_user "\n***************************************************************************************\n"
+send_user "* Step 2: Changing to file directory \n" 
+send_user "***************************************************************************************\n"
+
+# at this point we are logged in and good to use the SSH connection
+# each command is checked for success 
+
+# go to directory of the tar file
+send "cd `dirname $file` \r" 
+
+expect {
+	# the command prompt ends like this -> '$ ', so we wait for that
+	"\\$ \$" {}
+	timeout { send_user "\nERROR: Timeout: host $machine is not responding!\n" ; exit 1 }
+	eof 	{ send_user "\nERROR: SSH Connection to $machine terminated!\n"; exit 1 }
+}
+
+send { if [ $? -ne 0 ] ; then echo 'BAD_EXIT_STATUS'; fi}
+send "\r"
+
+expect {
+	-re "\nBAD_EXIT_STATUS" {
+		send_user "\nERROR: Cannot change to directory of $file!\n"
+		exit 1
+	}
+	"\\$ \$" {}
+	timeout { send_user "\nERROR: Timeout: host $machine is not responding!\n" ; exit 1 }
+	eof 	{ send_user "\nERROR: SSH Connection to $machine terminated!\n"; exit 1 }
+}
+
+send_user "\n***************************************************************************************\n"
+send_user "* Step 3: Extracting $file \n"
+send_user "***************************************************************************************\n"
+
+# the unpacking might run for an arbitrary amout of time
+set timeout -1
+
+# unpack the file
+send "tar -xzf `basename $file`\r"
+
+expect {
+	"\\$ \$" {}
+	timeout { send_user "\nERROR: Timeout: host $machine is not responding!\n" ; exit 1 }
+	eof 	{ send_user "\nERROR: SSH Connection to $machine terminated!\n"; exit 1 }
+}
+
+send { if [ $? -ne 0 ] ; then echo 'BAD_EXIT_STATUS'; fi}
+send "\r"
+
+expect {
+	-re "\nBAD_EXIT_STATUS" {
+		send_user "\nERROR: error during extraction of $file!\n"
+		exit 1
+	}
+	"\\$ \$" {}
+	timeout { send_user "\nERROR: Timeout: host $machine is not responding!\n" ; exit 1 }
+	eof 	{ send_user "\nERROR: SSH Connection to $machine terminated!\n"; exit 1 }
+}
+
+send_user "\n***************************************************************************************\n"
+send_user "* Step 4: Deleting $file \n"
+send_user "***************************************************************************************\n"
+
+# delete the tar file
+send "rm `basename $file`\r"
+
+expect {
+	"\\$ \$" {}
+	timeout { send_user "\nERROR: Timeout: host $machine is not responding!\n" ; exit 1 }
+	eof 	{ send_user "\nERROR: SSH Connection to $machine terminated!\n"; exit 1 }
+}
+
+send { if [ $? -ne 0 ] ; then echo 'BAD_EXIT_STATUS'; fi}
+send "\r"
+
+expect {
+	-re "\nBAD_EXIT_STATUS" {
+		send_user "\nERROR: error deleting $file after extraction!\n"
+		exit 1
+	}
+	"\\$ \$" {}
+	timeout { send_user "\nERROR: Timeout: host $machine is not responding!\n" ; exit 1 }
+	eof 	{ send_user "\nERROR: SSH Connection to $machine terminated!\n"; exit 1 }
+}
+
+send_user "\n***************************************************************************************\n"
+send_user "* Successfully extracted $file on $machine \n"
+send_user "***************************************************************************************\n"

@@ -1,0 +1,25 @@
+#!/usr/bin/expect -f
+
+set machine [lindex $argv 0]
+set user [lindex $argv 1]
+set pass [lindex $argv 2]
+set file [lindex $argv 3]
+set timeout -1
+
+spawn ssh $user@$machine
+expect "password:*\$" 
+send "$pass\r"
+
+# the command prompt ends like this -> '$ ', so we wait for that
+expect "\\$ \$" 
+# go to directory of the tar file
+send "cd `dirname $file` \r" 
+expect "\\$ \$"
+
+# unpack the file
+send "tar -xzf `basename $file`\r"
+expect "\\$ \$"
+
+# delete the tar file
+send "rm `basename $file`\r"
+expect "\\$ \$"

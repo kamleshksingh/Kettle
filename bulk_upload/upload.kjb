@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<job>
+  <name>upload</name>
+    <description/>
+    <extended_description/>
+    <job_version/>
+  <directory>&#47;</directory>
+  <created_user>-</created_user>
+  <created_date>2010&#47;07&#47;04 12:50:44.841</created_date>
+  <modified_user>-</modified_user>
+  <modified_date>2010&#47;07&#47;04 12:50:44.841</modified_date>
+    <parameters>
+    </parameters>
+    <slaveservers>
+    </slaveservers>
+  <logconnection/>
+  <logtable/>
+  <size_limit_lines/>
+   <use_batchid>N</use_batchid>
+   <pass_batchid>N</pass_batchid>
+   <use_logfield>N</use_logfield>
+   <shared_objects_file/>
+  <entries>
+    <entry>
+      <name>START</name>
+      <description/>
+      <type>SPECIAL</type>
+      <start>Y</start>
+      <dummy>N</dummy>
+      <repeat>N</repeat>
+      <schedulerType>0</schedulerType>
+      <intervalSeconds>0</intervalSeconds>
+      <intervalMinutes>60</intervalMinutes>
+      <hour>12</hour>
+      <minutes>0</minutes>
+      <weekDay>1</weekDay>
+      <DayOfMonth>1</DayOfMonth>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>31</xloc>
+      <yloc>57</yloc>
+      </entry>
+    <entry>
+      <name>Success</name>
+      <description/>
+      <type>SUCCESS</type>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>657</xloc>
+      <yloc>56</yloc>
+      </entry>
+    <entry>
+      <name>Abort job</name>
+      <description/>
+      <type>ABORT</type>
+      <message/>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>403</xloc>
+      <yloc>191</yloc>
+      </entry>
+    <entry>
+      <name>tar my_files directory</name>
+      <description>Shell</description>
+      <type>SHELL</type>
+      <filename/>
+      <work_directory>${Internal.Job.Filename.Directory}</work_directory>
+      <arg_from_previous>N</arg_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <set_logfile>N</set_logfile>
+      <logfile/>
+      <set_append_logfile>N</set_append_logfile>
+      <logext/>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <insertScript>Y</insertScript>
+      <script>tar -czf my_files.tar.gz my_files</script>
+      <loglevel>Nothing</loglevel>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>275</xloc>
+      <yloc>58</yloc>
+      </entry>
+    <entry>
+      <name>Remove stale tar file</name>
+      <description>Delete file</description>
+      <type>DELETE_FILE</type>
+      <filename>${Internal.Job.Filename.Directory}&#47;my_files.tar.gz</filename>
+      <fail_if_file_not_exists>N</fail_if_file_not_exists>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>137</xloc>
+      <yloc>57</yloc>
+      </entry>
+    <entry>
+      <name>upload tar file</name>
+      <description>Put a file with SFTP</description>
+      <type>SFTPPUT</type>
+      <servername>host</servername>
+      <serverport>22</serverport>
+      <username>user</username>
+      <password>Encrypted 2be98afc86aa7f2e4cb79ce10ce93bcc9</password>
+      <sftpdirectory>Documents</sftpdirectory>
+      <localdirectory>${Internal.Job.Filename.Directory}</localdirectory>
+      <wildcard>my_files.tar.gz</wildcard>
+      <remove>Y</remove>
+      <copyprevious>N</copyprevious>
+      <addFilenameResut>N</addFilenameResut>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>397</xloc>
+      <yloc>59</yloc>
+      </entry>
+    <entry>
+      <name>extract file remotely</name>
+      <description>Shell</description>
+      <type>SHELL</type>
+      <filename/>
+      <work_directory>${Internal.Job.Filename.Directory}</work_directory>
+      <arg_from_previous>N</arg_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <set_logfile>N</set_logfile>
+      <logfile/>
+      <set_append_logfile>N</set_append_logfile>
+      <logext/>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <insertScript>Y</insertScript>
+      <script>expect -f remote_extract.expect host user pass Documents&#47;my_files.tar.gz</script>
+      <loglevel>Nothing</loglevel>
+      <parallel>N</parallel>
+      <draw>Y</draw>
+      <nr>0</nr>
+      <xloc>521</xloc>
+      <yloc>57</yloc>
+      </entry>
+  </entries>
+  <hops>
+    <hop>
+      <from>tar my_files directory</from>
+      <to>Abort job</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>START</from>
+      <to>Remove stale tar file</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Remove stale tar file</from>
+      <to>tar my_files directory</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>tar my_files directory</from>
+      <to>upload tar file</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>upload tar file</from>
+      <to>Abort job</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>upload tar file</from>
+      <to>extract file remotely</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>extract file remotely</from>
+      <to>Abort job</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>extract file remotely</from>
+      <to>Success</to>
+      <from_nr>0</from_nr>
+      <to_nr>0</to_nr>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+  </hops>
+  <notepads>
+  </notepads>
+</job>
