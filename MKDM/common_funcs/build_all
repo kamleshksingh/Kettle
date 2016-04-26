@@ -1,0 +1,56 @@
+#!/bin/ksh
+#*****************************************************************************
+#** Program         : build_all
+#** Original Author : Sanjeev Chaudhary
+#**
+#** Description     : The Generic function to build indexes on the table.
+#**                   The parameters to be passed are as shown below:
+#**                       1) Owner name 
+#**                       2) Table name
+#**                       3) Mode 
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ********** *******  ******************************************************* 
+#** 06/23/2003 schaudh  Initial Checkin
+#******************************************************************************
+
+function build_all
+{
+
+   sqlplus -s $ORA_CONNECT << SQLEOT
+
+   SET TIMING ON 
+   WHENEVER SQLERROR EXIT FAILURE
+   WHENEVER OSERROR EXIT FAILURE
+
+   define OWNER_NAME=$1
+   define TABLE_NAME=$2
+   define MODE=$3
+
+
+   PROMPT Creating index on &TABLE_NAME 
+   PROMPT ************************************************************
+
+   exec build_all('&OWNER_NAME','&TABLE_NAME','&MODE'); 
+
+   PROMPT Created index on &TABLE_NAME 
+
+   PROMPT ************************************************************
+
+   quit;
+
+SQLEOT
+
+   if [ $? -ne 0 ]
+   then
+      print "Creating index on table $2 failed."
+      return 1
+   else
+      print "Creating  index on table $2 completed successfully."
+      return 0
+   fi
+
+}

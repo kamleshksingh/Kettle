@@ -1,0 +1,57 @@
+#!/bin/ksh
+#*******************************************************************************
+#** Program         :  check_variables
+#**
+#** Original Author :  Thiru
+#**
+#** Description     : Function to run and sql script and all it parameters
+#**
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ---------- -------- ------------------------------------------------
+#** 04/30/2003 bthirup    Initial Checkin
+#*****************************************************************************
+#-----------------------------------------------------------------
+# Function to run and sql script and all it parameters
+#-----------------------------------------------------------------
+function run_sql
+ {
+
+   # -----------------------------------------------------
+   # Get The Date And Time Before running The SQL script
+   # -----------------------------------------------------
+
+   dt=`date +%Y/%m/%d`
+   tm=`date +%H:%M:%S`
+   echo $1  'started on ' $dt ' at ' $tm
+   echo "**************************************************"
+    # $2 should be taken as  &1 in SQL file
+    # $3 should be taken as  &2 in SQL file ... etc ....
+    sqlplus  $ORA_CONNECT << END_OF_SQL
+        whenever oserror exit failure ;
+        whenever sqlerror exit failure ;  
+    @$SQLDIR/$*
+    quit
+END_OF_SQL
+
+   if [ $? -ne 0 ]
+      then
+       dt=`date +%Y/%m/%d`
+       tm=`date +%H:%M:%S`
+       echo $1  'failed on ' $dt ' at ' $tm
+       echo "**************************************************"
+       return 1
+   else
+       dt=`date +%Y/%m/%d`
+       tm=`date +%H:%M:%S`
+       echo $1  'completed successfully on ' $dt ' at ' $tm
+       echo "**************************************************"
+       return  0
+   fi
+
+}
+
+

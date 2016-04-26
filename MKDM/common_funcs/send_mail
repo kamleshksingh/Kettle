@@ -1,0 +1,17 @@
+#!/bin/ksh
+#-----------------------------------------------------------------
+# Function to send the mail
+# This function will be called from anywhere in a job stream that
+# requires notification. The message passed will
+#-----------------------------------------------------------------
+ function send_mail
+{
+   message=$1
+   subject=$2
+   ids=$3
+
+   mail -s "$subject" "$ids"  << MAILEOF
+   `print "$message"`
+MAILEOF
+}
+

@@ -1,0 +1,74 @@
+#!/bin/ksh
+#*******************************************************************************
+#** Program         :  check_job_status
+#**
+#** Original Author :  SANJEEV
+#**
+#** Description     : Function to check the status of last run 
+#**                   If the job as alredy run at requested day
+#**                   the job will error out. 
+#**
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ---------- -------- ------------------------------------------------
+#** 07/13/2003 schaudh    Initial Checkin
+#*****************************************************************************
+#-----------------------------------------------------------------
+# Function to retrun the last successful run date 
+#-----------------------------------------------------------------
+function check_job_status
+{
+
+   SCRIPT_NAME="$1"
+   STATUS="$2"
+   RUN_DATE="$3"
+
+   echo "Checking if the job ($SCRIPT_NAME)  has status as $STATUS run on $RUN_DATE " 
+   echo "************************************************************"
+
+   sqlplus -s $ORA_CONNECT << EOT  2>&1
+   WHENEVER OSERROR EXIT FAILURE
+   WHENEVER SQLERROR EXIT FAILURE
+   SET FEEDBACK OFF;
+   SET ECHO ON;
+   SET VERIFY ON;
+   SET SERVEROUTPUT ON ;
+
+
+   DECLARE
+     last_run DATE;
+     already_run EXCEPTION;
+   BEGIN
+
+   SELECT  TRUNC(last_run)
+   INTO    last_run
+   FROM
+   (
+     SELECT MAX(TRUNC(end_time))  last_run
+     FROM mkdm_job_status
+     WHERE status = '$STATUS'
+     AND job_name = ( SELECT job_name FROM mkdm_job_control
+                      WHERE script_name = '$SCRIPT_NAME')
+    );
+
+    IF TRUNC(last_run) = TRUNC($RUN_DATE) THEN
+       DBMS_OUTPUT.PUT_LINE('$SCRIPT_NAME has already completed successfully on ' || last_run) ;
+       DBMS_OUTPUT.PUT_LINE('Bailing out ...');
+       DBMS_OUTPUT.PUT_LINE('...');
+       RAISE already_run;
+    ELSE
+       DBMS_OUTPUT.PUT_LINE(' Running the job for: ' || SYSDATE);
+    END IF;
+
+-- The exception is intentionally not captured to make sure that this procedure
+-- returns error if the job has already completed successfully.
+   END;
+/
+EOT
+#   return 0
+}
+
+

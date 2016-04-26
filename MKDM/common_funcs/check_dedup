@@ -1,0 +1,282 @@
+#!/bin/ksh
+#**********************************************************************
+#** Program         :  check_dedup
+#**
+#** Original Author :  rananto
+#**
+#** Description     :  Function to get the LAST_RUN_DATE from the 
+#**                    MKDM_JOB_CONTROL table.The job_name need to be 
+#**                    passed as a parameter.
+#**
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ---------- -------- -----------------------------------
+#** 10/04/2006 rananto  Initial Checkin
+#**********************************************************************
+function check_error
+{
+   if [ $? -ne 0 ]; then
+      print $1
+      return 1
+   fi
+}
+
+function check_dedup
+{
+   if [ $# -lt 2 -o $# -gt 3 ]
+   then
+      print "   USAGE: check_dedup DUP_REC_CNT DEDUP_CD [Partition_value] "
+      return 1
+   fi
+    
+   TMP=$TMP_DIR/CHK_DUP_EXST.$$ #Temp out file. Needed at later stage.
+ 
+   V_DEDUP_CODE=$2
+   V_PART_VAL=$3
+ 
+#---------------------------------------------------------------
+# Get Job Info in TMP file
+#---------------------------------------------------------------
+#--Step 1
+   ret=`sqlplus -s $ORA_CONNECT << END_OF_SQL
+   set pause off
+   set head off
+   set show off
+   set feed off
+   set timing off
+   set echo off
+   set linesize 110
+   
+   spool $TMP
+   WHENEVER SQLERROR EXIT FAILURE
+   WHENEVER OSERROR EXIT FAILURE
+ 
+   SELECT RPAD('V_DEDUP_CODE="'       ||NVL(a.dedup_cd,'NULL') || '"',80),
+          RPAD('V_TABLE_OWNER_NM="'   ||NVL(a.table_owner_nm,'NULL') || '"',80),
+          RPAD('V_TABLE_NM="'         ||NVL(a.table_nm,'NULL') || '"',80),
+          RPAD('V_DEDUP_COLUMN_NM="'  ||NVL(a.dedup_column_nm,'NULL') || '"',110),
+          RPAD('V_DEDUP_SUC_INDR="'   ||NVL(max(b.dup_suc_indr),'Y') || '"',80),
+          RPAD('V_DEDUP_HIST_NO="'    ||NVL(decode(max(b.dup_suc_indr),'Y',max(b.dedup_hist_no)+1
+                                               ,max(b.dedup_hist_no)),1) || '"',80),
+          RPAD('V_CONDTN_TXT="'       ||NVL(a.dedup_condtn_txt,'1=1') || '"',300)
+     FROM mkdm_dedup_col_list a
+         ,mkdm_dedup_process_hist b
+    WHERE UPPER(a.dedup_cd) = UPPER('$V_DEDUP_CODE')
+      AND a.dedup_cd=b.dedup_cd(+)
+      AND a.dedup_hist_no=b.dedup_hist_no(+)
+    GROUP BY a.dedup_cd,a.table_owner_nm,a.table_nm,a.dedup_column_nm,a.dedup_condtn_txt;
+ 
+   spool off
+   QUIT;
+END_OF_SQL`
+    
+   check_error "Error when getting details from mkdm_DEDUP_COL_LIST table"
+    
+   DEDUP_CODE_FOUND=`grep 'V_DEDUP_CODE=' $TMP | wc -l`
+    
+   if [ $DEDUP_CODE_FOUND -lt 1 ]
+   then
+      echo "Invalid DEDUP_CODE - $V_DEDUP_CODE."
+      rm $TMP
+      return 1
+   fi
+    
+   . $TMP
+   rm $TMP
+   
+#---------------------------------------------------------------
+# To handle partitions
+#---------------------------------------------------------------
+#--Step 2
+    FLD_SEP=" "
+    if [ $# -eq 3 ]
+    then
+       V_PART_CLAUSE="PARTITION ($V_PART_VAL)"
+       V_TAB_CLAUSE=${V_TABLE_OWNER_NM}.${V_TABLE_NM}${FLD_SEP}${V_PART_CLAUSE}
+    else
+       V_TAB_CLAUSE=${V_TABLE_OWNER_NM}.${V_TABLE_NM}
+    fi
+    
+    echo "Dedup Code is  $V_DEDUP_CODE"
+    echo "Table Name is  $V_TAB_CLAUSE"
+    echo "Column List is $V_DEDUP_COLUMN_NM"
+       
+
+#---------------------------------------------------------------
+# To get table count
+#--------------------------------------------------------------- 
+#--Step 3
+ 
+   V_REC_CNT=`sqlplus -s $ORA_CONNECT << END_OF_SQL
+   set pause off
+   set head off
+   set show off
+   set feed off
+   set timing off
+   set echo off
+   set linesize 10
+   
+   WHENEVER SQLERROR EXIT FAILURE
+   WHENEVER OSERROR EXIT FAILURE
+   
+   SELECT count(1) FROM $V_TAB_CLAUSE
+    WHERE $V_CONDTN_TXT;
+   
+   QUIT;
+END_OF_SQL`
+
+   check_error "Error when getting count of table : $V_TAB_CLAUSET"
+ 
+ 
+#---------------------------------------------------------------
+# To get count of duplicates in table
+#---------------------------------------------------------------   
+#--Step 4
+
+   V_DUP_REC_CNT=`sqlplus -s $ORA_CONNECT << END_OF_SQL
+   set pause off
+   set head off
+   set show off
+   set feed off
+   set timing off
+   set echo off
+   set linesize 10
+   
+   WHENEVER SQLERROR EXIT FAILURE
+   WHENEVER OSERROR EXIT FAILURE
+   
+   SELECT count(1) FROM
+   (SELECT $V_DEDUP_COLUMN_NM , count(1)
+      FROM $V_TAB_CLAUSE a
+     WHERE $V_CONDTN_TXT
+     GROUP BY  $V_DEDUP_COLUMN_NM
+    HAVING COUNT(1) > 1 );
+   
+   QUIT;
+END_OF_SQL`
+   
+   check_error "Error when getting duplicate count of table : $V_TAB_CLAUSE"
+ 
+#---------------------------------------------------------------
+# To classify "before dedup" or "after dedup" or "Error rerun"
+#---------------------------------------------------------------
+#--Step 5
+
+   if [ $V_DEDUP_SUC_INDR = "Y" ]
+   then
+      #-- Before dedup 
+      sqlplus -s $ORA_CONNECT << END_OF_SQL
+
+      SET FEED OFF
+      WHENEVER SQLERROR EXIT FAILURE
+      WHENEVER OSERROR EXIT FAILURE
+
+      UPDATE mkdm_dedup_col_list
+         SET dedup_hist_no=$V_DEDUP_HIST_NO
+       WHERE UPPER(dedup_cd) = UPPER('$V_DEDUP_CODE');
+
+      INSERT INTO mkdm_dedup_process_hist(dedup_cd,bf_tab_cnt,bf_dup_cnt,dedup_hist_no,dup_suc_indr)
+      VALUES ('$V_DEDUP_CODE',$V_REC_CNT,$V_DUP_REC_CNT,$V_DEDUP_HIST_NO,'N');
+
+      COMMIT;
+      QUIT;
+END_OF_SQL
+      
+      check_error "Error when Inserting new entry for table : $V_TAB_CLAUSE"
+   elif [ $V_DEDUP_SUC_INDR = "E" ]
+   then
+      #-- Error rerun
+      sqlplus -s $ORA_CONNECT << END_OF_SQL
+
+      SET FEED OFF
+      WHENEVER SQLERROR EXIT FAILURE
+      WHENEVER OSERROR EXIT FAILURE
+
+      INSERT INTO mkdm_dedup_process_hist
+      SELECT a.dedup_cd
+            ,min(a.af_tab_cnt)
+            ,min(a.af_dup_cnt)
+            ,$V_REC_CNT
+            ,$V_DUP_REC_CNT
+            ,'N'
+            ,$V_DEDUP_HIST_NO
+            ,SYSDATE
+        FROM mkdm_dedup_process_hist a
+       WHERE UPPER(dedup_cd) = UPPER('$V_DEDUP_CODE')
+         AND dedup_hist_no=$V_DEDUP_HIST_NO
+         AND dup_suc_indr = 'E'
+       GROUP BY dedup_cd;
+
+      COMMIT;
+      QUIT;
+END_OF_SQL
+      
+      check_error "Error when Inserting recovered entry for table : $V_TAB_CLAUSE"
+   else
+      #-- After dedup
+      sqlplus -s $ORA_CONNECT << END_OF_SQL
+
+      SET FEED OFF
+      WHENEVER SQLERROR EXIT FAILURE
+      WHENEVER OSERROR EXIT FAILURE         
+ 
+      UPDATE mkdm_dedup_process_hist 
+         SET af_tab_cnt=$V_REC_CNT
+            ,af_dup_cnt=$V_DUP_REC_CNT
+       WHERE UPPER(dedup_cd) = UPPER('$V_DEDUP_CODE')
+         AND dedup_hist_no=$V_DEDUP_HIST_NO
+         AND dup_suc_indr = 'N';
+         
+      COMMIT;
+      QUIT;
+END_OF_SQL
+      
+      check_error "Error when updating count after dedup for table : $V_TAB_CLAUSE"
+   fi   
+#---------------------------------------------------------------
+# To make sure all duplicates are deleted
+#--------------------------------------------------------------- 
+#-- Step 6
+   if [ $V_DEDUP_SUC_INDR != "Y" ]
+   then
+      V_DUP_REC_CNT=`expr $V_DUP_REC_CNT + 0`
+ 
+      export $1=$V_DUP_REC_CNT
+ 
+      if [ $V_DUP_REC_CNT -gt 0 ]
+      then
+         #-- update reference table for failure
+         V_DUP_INDR='E'
+         V_RETURN=1
+      else
+         #-- update reference table for success
+         V_DUP_INDR='Y'
+         V_RETURN=0
+      fi
+
+      sqlplus -s $ORA_CONNECT << END_OF_SQL
+     
+      SET FEED OFF
+      WHENEVER SQLERROR EXIT FAILURE
+      WHENEVER OSERROR EXIT FAILURE         
+   
+      UPDATE mkdm_dedup_process_hist 
+         SET dup_suc_indr = '$V_DUP_INDR',
+                  load_dt = SYSDATE
+       WHERE UPPER(dedup_cd) = UPPER('$V_DEDUP_CODE')
+         AND dedup_hist_no=$V_DEDUP_HIST_NO
+         AND dup_suc_indr = 'N';
+          
+      COMMIT;
+      QUIT;     
+END_OF_SQL
+         
+      check_error "Error when updating the status for table : $V_TAB_CLAUSE"
+      echo "No of records which have duplicates : $V_DUP_REC_CNT"
+         
+      return $V_RETURN
+   fi
+}

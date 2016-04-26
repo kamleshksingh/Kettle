@@ -1,0 +1,281 @@
+#*****************************************************************************
+#** Program         : create_partition 
+#**
+#** Original Author : amahara 
+#**
+#** Description     : Generic function for creatin and splitting partition
+#**                   The parameters to be passed are as shown below:
+#**                       1) Table name
+#**                       2) Maximum partition date(in 'YYYYMM' format)           
+#**                   Pre requisite: Partition name is of format "PYYYYMM"
+#**
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ********** *******  *******************************************************
+#** 03/13/2006 amahara  Initial Checkin
+#** 07/04/2006 msiddai  Added code for splitting partition and  optional date argument
+#******************************************************************************
+
+#Function to create partition
+
+#******************************************************************************
+
+function create_partition 
+{
+if [ $# -eq 1 ]
+then
+max_part_date=`date '+%Y%m'`
+elif [ $# -eq 2 ]
+then
+max_part_date=$2
+else
+echo "Invalid Argument Count"
+exit
+fi
+table_name=$1
+check_table=""
+check_table=`sqlplus -s $ORA_CONNECT <<SQLEOT
+set heading off
+set verify off
+set feedback off
+
+define table_name=$table_name
+WHENEVER SQLERROR CONTINUE
+SELECT table_name from all_tables where table_name=UPPER('&table_name');
+
+SQLEOT`
+
+#echo $check_table 
+if [ $check_table != "" ]
+
+then
+
+partition_name=`sqlplus -s $ORA_CONNECT <<SQLEOT
+
+set heading off
+set verify off
+set feedback off
+
+define table_name=$table_name
+
+SELECT SUBSTR(partition_name,2) 
+FROM all_tab_partitions 
+WHERE table_name=UPPER('&table_name') 
+ORDER BY Partition_name;
+
+SQLEOT`
+
+echo $partition_name
+
+set -A partition_name_array $partition_name
+echo $partition_name
+
+array_length=${#partition_name_array[*]}
+
+((array_length_1=array_length-1))
+
+echo "First Partition Found : ${partition_name_array[0]}"
+
+diff=0
+arr_index1=0
+arr_index2=0
+
+while [ $arr_index1 -lt $array_length_1 ]
+
+   do
+      ((arr_index2=$arr_index1+1))
+      lower_month=${partition_name_array[$arr_index1]}
+      higher_month=${partition_name_array[$arr_index2]}
+      months_between $lower_month $higher_month
+      if [ $diff -eq 1 ]
+         then
+
+            echo "***Partition $lower_month already exists***" 
+
+         else
+   
+            echo "***Partition $lower_month already exists***"
+
+            echo "***Splitting $higher_month into $diff New partitions***"
+
+            split_partition $table_name $higher_month $diff
+      fi
+
+   ((arr_index1=arr_index1+1))
+   done
+
+echo "***Missed out partitions between months have been Checked/Created successfully***"
+
+echo "Last Partition Found : ${partition_name_array[$array_length_1]}"
+
+echo "Maximum Partition to be created : $max_part_date"
+
+if [ ${partition_name_array[$array_length_1]} = $max_part_date ]
+
+   then
+      echo "***Partition up to date***"
+
+   else
+
+      echo "***Partition not up to date***"
+
+      lower_month=${partition_name_array[$array_length_1]}
+      higher_month=$max_part_date
+
+      months_between $lower_month $higher_month
+
+      echo "***$diff more partitions have to be created***"
+ 
+      while [ $diff -gt 0 ]
+
+         do
+
+sqlplus -s $ORA_CONNECT <<SQLEOT
+                  
+            SET TIMING ON
+
+
+            WHENEVER SQLERROR EXIT FAILURE
+            WHENEVER OSERROR EXIT FAILURE
+
+            define table_name=$table_name
+
+            column max_part new_value max_part
+            column tbl_space new_value tbl_space
+            column new_part new_value new_part
+            column high_val new_value high_val
+            column part_col_datatype new_value part_col_datatype 
+
+SELECT partition_name max_part,tablespace_name tbl_space FROM all_tab_partitions 
+WHERE table_name=UPPER('&table_name') 
+AND partition_name IN(SELECT MAX(partition_name) FROM all_tab_partitions 
+WHERE table_name=UPPER('&table_name'));
+
+SELECT 'P' || TO_CHAR(ADD_MONTHS(TO_DATE('&max_part','"P"YYYYMM'),1),'YYYYMM') new_part,
+TO_CHAR(ADD_MONTHS(TO_DATE('&max_part','"P"YYYYMM'),2),'YYYYMM') high_val FROM DUAL;
+
+WHENEVER SQLERROR CONTINUE
+
+ALTER TABLE &table_name ADD PARTITION &new_part VALUES LESS THAN (to_date('&high_val','YYYYMM'))  
+TABLESPACE &tbl_space;
+
+
+ALTER TABLE &table_name ADD PARTITION &new_part VALUES LESS THAN('&high_val');
+
+WHENEVER SQLERROR EXIT FAILURE
+
+update crt_parts_ref
+      set    last_part_create_date = trunc(sysdate),
+             last_part_name        = '&new_part',
+             loaded_indr           = 'N'
+      where  part_table_root       = UPPER('&table_name');
+quit;
+     
+SQLEOT
+
+((diff=$diff-1))
+done
+
+echo "Partition created till $max_part_date"
+
+fi
+
+if [ $? -ne 0 ]
+   then
+      print "Creating partition for table $table_name failed."
+      return 1
+   else
+      print "Creating partition for table $table_name completed successfully."
+      return 0
+fi
+else
+echo "Im here"
+echo "Table does not exist"
+exit
+fi
+}
+#***********************************************************************************
+#Function to return the number of months between two dates given in 'YYYYMM' format
+#************************************************************************************
+
+function months_between
+{
+
+diff=`sqlplus -s $ORA_CONNECT <<SQLEOT
+
+set heading off
+set verify off
+set feedback off
+
+SELECT MONTHS_BETWEEN(TO_DATE('$higher_month','yyyymm'),TO_DATE('$lower_month','yyyymm'))
+FROM DUAL;
+
+exit;
+
+SQLEOT`
+
+}
+#*******************************************************************
+#Function to split partition
+#*******************************************************************
+function split_partition
+{
+
+while [ $diff -gt 1 ]
+
+   do
+      to_split="P$higher_month"
+      range=$higher_month
+      p_name2=$to_split
+
+      ((temp=$higher_month%100))
+
+      if [ $temp -eq 1 ]
+         then
+            ((higher_month=$higher_month-89))
+         else
+            ((higher_month=$higher_month-1))
+      fi
+
+      p_name1="P$higher_month"
+
+      echo "Creating Partitions : $p_name1 and $p_name2"
+
+      echo "Values : $range"
+
+sqlplus -s $ORA_CONNECT << SQLEOT
+
+      SET TIMING ON
+
+      WHENEVER SQLERROR EXIT FAILURE
+      WHENEVER OSERROR EXIT FAILURE
+
+
+      define table_name=$table_name
+      column part_col_datatype new_value part_col_datatype
+
+WHENEVER SQLERROR CONTINUE
+
+ALTER TABLE &table_name SPLIT PARTITION $to_split AT (to_date('$range','YYYYMM'))  
+INTO (PARTITION $p_name1,PARTITION $p_name2);
+
+
+ALTER TABLE &table_name SPLIT PARTITION $to_split AT ('$range') 
+INTO (PARTITION $p_name1,PARTITION $p_name2);
+
+QUIT;
+
+SQLEOT
+
+      ((diff=$diff-1))
+
+      done
+
+echo "***Missed out partitions created***" 
+
+}
+
+

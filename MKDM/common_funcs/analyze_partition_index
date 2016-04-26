@@ -1,0 +1,62 @@
+#!/bin/ksh
+#*****************************************************************************
+#** Program         : analyze_partition_index
+#** Original Author : Sakthievel
+#**
+#** Description     : The Generic function to analyze indexes on the partitioned tables. 
+#**                   The parameters to be passed are as shown below:
+#**                       1) Owner name 
+#**                       2) Index name
+#**                       3) Partition name
+#**                       4) Estimate percent
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ********** *******  ******************************************************* 
+#** 09/23/2003 sthrumu  Initial Checkin
+#******************************************************************************
+#******************************************************************************
+#- Function to analyze indexes on the partitioned tables. 
+#******************************************************************************
+
+function analyze_partition_index
+{
+
+   sqlplus -s $ORA_CONNECT << SQLEOT
+
+   SET TIMING ON 
+   WHENEVER SQLERROR EXIT FAILURE
+   WHENEVER OSERROR EXIT FAILURE
+
+   define OWNER_NAME=$1
+   define INDEX_NAME=$2
+   define PARTITION_NAME=$3
+   define ESTIMATE_PERCENT=$4
+
+   PROMPT Analyzing index &INDEX_NAME partition &PARTITION_NAME
+
+   PROMPT ************************************************************
+
+   exec dbms_stats.gather_index_stats('&OWNER_NAME', '&INDEX_NAME', '&PARTITION_NAME', &ESTIMATE_PERCENT, NULL, NULL, NULL);
+
+   PROMPT Analyzed index &INDEX_NAME partition &PARTITION_NAME
+
+   PROMPT ************************************************************
+
+   quit;
+
+SQLEOT
+
+   if [ $? -ne 0 ]
+   then
+      print "Analyzing partitioned index $2 failed."
+      return 1
+   else
+      print "Analyzing partitioned index $2 completed successfully."
+      return 0
+   fi
+
+}
+      

@@ -1,0 +1,76 @@
+#!/bin/ksh
+#*****************************************************************************
+#** Program         : count_recs
+#** Original Author : Brian Syptak
+#**
+#** Description     : The Generic function to build indexes on the table.
+#**                   The parameters to be passed are as shown below:
+#**                       1) Table name (may include owner i.e. mkdm.ld_usage_tn)
+#**                       2) OPTIONAL: "PARTITION" or "WHERE" or nothing
+#**                       3) OPTIONAL: partition name or where clause:
+#**                          i.e. "(P200502)" or "load_date = trunc(sysdate)"
+#**
+#**                    Example command lines:
+#**                      Usage 1:  count_recs ld_usage_tn
+#**                      Usage 2:  count_recs ld_usage_tn PARTITION (P200502)
+#**                      Usage 3:  count_recs ld_usage_tn WHERE "load_date = trunc(sysdate)"
+#**
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ********** *******  ******************************************************* 
+#** 02/25/2005 bsyptak  Initial Checkin
+#******************************************************************************
+
+function count_recs
+{
+
+   if [ $# -eq 1 ]; then
+     sqlplus -s $ORA_CONNECT << SQLEOT
+     set feedback off
+     set verify off
+     set head off
+     WHENEVER SQLERROR EXIT SQL.SQLCODE
+
+     define TABLE_NAME=$1
+
+     select count(*) from &TABLE_NAME;
+
+     quit;
+
+SQLEOT
+   elif [ $2 = "PARTITION" ]; then
+     sqlplus -s $ORA_CONNECT << SQLEOT
+     set feedback off
+     set verify off
+     set head off
+     WHENEVER SQLERROR EXIT SQL.SQLCODE
+
+     define TABLE_NAME=$1
+     define PARTITION_NAME=$3
+
+     select count(*) from &TABLE_NAME partition &PARTITION_NAME ;
+
+   quit;
+
+SQLEOT
+   elif [ $2 = "WHERE" ]; then
+     sqlplus -s $ORA_CONNECT << SQLEOT
+     set feedback off
+     set verify off
+     set head off
+     WHENEVER SQLERROR EXIT SQL.SQLCODE
+
+     define TABLE_NAME=$1
+     define WHERE_CLAUSE=$3
+
+     select count(*) from &TABLE_NAME where &WHERE_CLAUSE ;
+
+   quit;
+
+SQLEOT
+   fi
+
+}

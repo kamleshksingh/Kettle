@@ -1,0 +1,43 @@
+#!/bin/ksh
+#*******************************************************************************
+#** Program         :  check_variables
+#**
+#** Original Author :  Thiru
+#**
+#** Description     : Function to run and sql script and all it parameters
+#**
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ---------- -------- ------------------------------------------------
+#** 04/30/2003 bthirup    Initial Checkin
+#*****************************************************************************
+#-----------------------------------------------------------------
+# Function to run and sql script and all it parameters
+#-----------------------------------------------------------------
+function get_db_value
+{
+
+   VAR=$1
+   SELECT="$2"
+   SQL="$3"
+
+
+   OUTDATA=`sqlplus -s $ORA_CONNECT <<EOT 2>&1 | tee temp | grep OUTDATA | awk -F\| '{print $2}'
+   whenever oserror exit failure
+   whenever sqlerror exit failure
+   set heading off
+   set termout off
+   set pagesize 0
+   select 'OUTDATA|' || $SELECT
+   $SQL;
+EOT`
+
+   export $1="$OUTDATA"
+
+   return 0
+}
+
+

@@ -1,0 +1,60 @@
+#!/bin/ksh
+#*****************************************************************************
+#** Program         : analyze_table
+#** Original Author : Sakthievel
+#**
+#** Description     : The Generic function for analyzing the table.
+#**                   The parameters to be passed are as shown below:
+#**                       1) Owner name 
+#**                       2) Table name
+#**                       3) Estimate percent
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ********** *******  ******************************************************* 
+#** 09/23/2003 sthrumu  Initial Checkin
+#******************************************************************************
+#******************************************************************************
+#- Function to analyze the tables.
+#******************************************************************************
+
+function analyze_table
+{
+   sqlplus -s $ORA_CONNECT << SQLEOT
+
+   SET TIMING ON 
+   WHENEVER SQLERROR EXIT FAILURE
+   WHENEVER OSERROR EXIT FAILURE
+
+   define OWNER_NAME=$1
+   define TABLE_NAME=$2
+   define ESTIMATE_PERCENT=$3
+
+   PROMPT Analyzing table &TABLE_NAME
+
+   PROMPT ************************************************************
+
+   exec dbms_stats.delete_table_stats ('&OWNER_NAME', '&TABLE_NAME');
+
+   exec dbms_stats.gather_table_stats('&OWNER_NAME', '&TABLE_NAME', NULL, &ESTIMATE_PERCENT, FALSE, 'FOR ALL INDEXED COLUMNS SIZE 50', 4, 'DEFAULT', TRUE, NULL, NULL, NULL);
+
+   PROMPT Analyzed table &TABLE_NAME
+
+   PROMPT ************************************************************
+
+   quit;
+
+SQLEOT
+
+   if [ $? -ne 0 ]
+   then
+      print "Analyzing table $2 failed."
+      return 1
+   else
+      print "Analyzing table $2 completed successfully."
+      return 0
+   fi
+
+}

@@ -1,0 +1,56 @@
+#!/bin/ksh
+#*****************************************************************************
+#** Program         : truncate_partition
+#** Original Author : Sanjeev Chaudhary 
+#**
+#** Description     : Truncate the partition whose name is passed as a parameter
+#**                   The parameter to be passed is as follows;
+#**                   1) Table name
+#**                   2) Partition name 
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ********** *******  ******************************************************* 
+#** 06/21/2004 schaudh    Initial Checkin
+#******************************************************************************
+#******************************************************************************
+#- Function to truncate a table
+#******************************************************************************
+
+function truncate_partition
+{
+   sqlplus -s $ORA_CONNECT << SQLEOT
+
+   SET TIMING ON 
+   WHENEVER SQLERROR EXIT FAILURE
+   WHENEVER OSERROR EXIT FAILURE
+
+   define TABLE_NAME=$1
+   define PARTITION_NAME=$2
+
+   PROMPT Truncating &PARTITION_NAME partition of &TABLE_NAME
+
+   PROMPT ************************************************************
+
+   alter table &TABLE_NAME truncate partition &PARTITION_NAME;
+
+   PROMPT Truncated &PARTITION_NAME partition of &TABLE_NAME
+
+   PROMPT ************************************************************
+
+   quit;
+
+SQLEOT
+
+   if [ $? -ne 0 ]
+   then
+      print "Truncating partition $PARTITION_NAME of &TABLE_NAME failed."
+      return 1
+   else
+      print "Truncating partition $PARTITION_NAME of &TABLE_NAME completed successfully."
+     return 0
+   fi
+
+}

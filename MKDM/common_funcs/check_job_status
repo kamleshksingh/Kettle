@@ -1,0 +1,68 @@
+#!/bin/ksh
+#*******************************************************************************
+#** Program         :  check_job_status
+#**
+#** Original Author :  Kamlesh Singh
+#**
+#** Description     : Function to check the status of last run 
+#**                   If the job as alredy run at requested day
+#**                   the job will error out. 
+#**
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ---------- -------- ------------------------------------------------
+#** 03/03/2016 a79974    Initial Checkin
+#*****************************************************************************
+#-----------------------------------------------------------------
+# Function to retrun the last successful run date 
+#-----------------------------------------------------------------
+function check_job_status
+{
+
+   SCRIPT_NAME="$1"
+   STATUS="$2"
+   RUN_DATE="$3"
+
+   echo "Checking if the job ($SCRIPT_NAME)  has status as $STATUS run on $RUN_DATE " 
+   echo "************************************************************"
+
+   mysql -sNh $DB_NAME << EOT  2>&1
+   
+   BEGIN
+   
+   DECLARE last_run DATETIME;
+     DECLARE EXIT HANDLER for already_run;
+   
+   SELECT  date(last_run)
+   INTO    last_run
+   FROM
+   (
+     SELECT MAX(date(a.end_time))  last_run
+     FROM etl_job_status a
+     WHERE status = '$STATUS'
+     AND job_name = ( SELECT d.job_name FROM etl_job_control d
+                      WHERE d.script_name = '$SCRIPT_NAME')
+    ) c;
+
+    IF date(last_run) = date($RUN_DATE) THEN
+       select '$SCRIPT_NAME has already completed successfully on ', @last_run) ;
+       select 'Bailing out ...';
+       select '...';
+       SIGNAL SQLSTATE '1'
+     SET MESSAGE_TEXT = 'manager_staff_id not found in staff table.';
+    ELSE
+       select ' Running the job for: ',now();
+    END IF;
+
+-- The exception is intentionally not captured to make sure that this procedure
+-- returns error if the job has already completed successfully.
+   END;
+/
+EOT
+#   return 0
+}
+
+

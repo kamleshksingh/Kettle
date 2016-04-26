@@ -1,0 +1,86 @@
+#!/bin/ksh
+#**********************************************************************
+#** Program         :  upd_mkdm_job_control
+#**
+#** Original Author :  Ginny Walker
+#**
+#** Description     :  Function to update the LAST_RUN_DATE on the
+#**                    MKDM_JOB_CONTROL table.  Current date format on
+#**                    the table is DD-MON-YYYY.  The default is today's
+#**                    date, otherwise a parameter will need to be passed.
+#**
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ---------- -------- -----------------------------------
+#** 10/21/2004 vewalke  Initial Checkin
+#** 09/07/2006 vxragun  Added optional parameter for last_run_date
+#**********************************************************************
+
+function upd_mkdm_job_control
+{
+   if [ $# -gt 2 -o $# -eq 0 ]; then
+      subject_msg="$L_SCRIPTNAME failed "
+      message="ERROR - Incorrect parameters (expected 1 or 2). USAGE: upd_mkdm_job_control job_name last_run_date (optional) "
+      send_mail "$message" "$subject_msg" $MKDM_ERR_LIST
+      exit $step_number
+   fi
+
+   LAST_RUN_DATE=$2
+   JOB_NAME=$1
+
+   TMP=$HOME/error.txt
+   sqlplus -s $ORA_CONNECT <<END_OF_SQL
+   set pause off
+   set head off
+   set show off
+   set feed off
+   set timing off
+   set echo off
+   set linesize 110
+   spool $TMP
+   WHENEVER SQLERROR EXIT FAILURE
+   WHENEVER OSERROR EXIT FAILURE
+  
+   SELECT 'V_JOB_NAME='||job_name
+   FROM   mkdm_job_control
+   WHERE UPPER(job_name) = UPPER('$JOB_NAME');
+   spool off;
+   QUIT;
+END_OF_SQL
+
+   JOB_FOUND=`grep 'V_JOB_NAME=' $TMP | wc -l`
+   if [ $JOB_FOUND -lt 1 ]; then
+      subject_msg="$L_SCRIPTNAME failed "
+      message="ERROR - Invalid Job name. USAGE: upd_mkdm_job_control job_name last_run_date (optional) "
+      send_mail "$message" "$subject_msg" $MKDM_ERR_LIST
+      rm $TMP
+      exit $step_number
+   fi
+ 
+   sqlplus -s $ORA_CONNECT <<EOT
+
+	   WHENEVER OSERROR EXIT FAILURE
+       	   WHENEVER SQLERROR EXIT FAILURE
+	   SET ECHO ON;
+	   UPDATE mkdm_job_control
+	   SET 	  last_run_date= NVL('$LAST_RUN_DATE',trunc(sysdate))
+	   WHERE  job_name= '$JOB_NAME';
+	   COMMIT;
+EOT
+
+   if [ $? -ne 0 ]
+      then
+	    echo " "
+	    echo "When updating the last_run_date= $LAST_RUN_DATE  for the job_name= $JOB_NAME in mkdm_job_control "
+      subject_msg="$L_SCRIPTNAME failed "
+      message="When updating the last_run_date for job_name=$JOB_NAME in mkdm_job_control. Enter last_run_date in DD-MON-YYYY format."
+      send_mail "$message" "$subject_msg" $MKDM_ERR_LIST
+      exit $step_number
+   fi
+      echo " mkdm_job_control updated successfully for job_name = $JOB_NAME "
+
+   return 0
+}

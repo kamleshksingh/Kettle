@@ -1,0 +1,31 @@
+#!/bin/ksh
+#*******************************************************************************
+#** Program         :  send_file_mail
+#**
+#** Original Author :  Kamlesh Singh
+#**
+#** Description     :  Function to send the mail
+#**
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ---------- -------- ------------------------------------------------
+#** 03/03/2016 a79974    Initial Checkin
+#*****************************************************************************
+# Function to send the mail
+# This function will be called from anywhere in a job stream that
+# requires notification. The message passed will
+#-----------------------------------------------------------------
+ function send_file_mail
+{
+   filename=$1
+   subject=$2
+   ids=$3
+
+   mail -s "$subject" "$ids"  << MAILEOF
+   `cat $filename`
+MAILEOF
+}
+

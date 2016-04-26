@@ -1,0 +1,64 @@
+#!/bin/ksh
+#*******************************************************************************
+#** Program         :  check_variables
+#**
+#** Original Author :  Jeff
+#**
+#** Description     : Function to capture data from the crdm_flex_env table
+#**
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ---------- -------- ------------------------------------------------
+#** 04/30/2003 bthirup    Initial Checkin
+#*****************************************************************************
+
+function get_crdm_flex_env
+{
+   if [ $# -ne 2 ]; then
+      print "   ERROR - Incorrect parameters ($*) (expected 2)"
+      print "   USAGE: get_crdm_flex_env lookup_value env_variable_to_set"
+      return 1
+   fi
+
+   LOOKUP_CODE=$1
+
+   V_LOOKUP_VALUE=`sqlplus -s $ORA_CONNECT <<EOT 2>&1 | grep LOOKUP_VAL | awk -F: '{print $2}'
+
+        whenever oserror exit failure
+        whenever sqlerror exit failure
+        set heading off
+        set linesize 500
+        select 'LOOKUP_VAL:' ||lookup_value
+           from   crdm_flex_env
+        where  lookup_code = '$LOOKUP_CODE';
+EOT`
+
+
+   if [ $? -ne 0 ]
+      then
+         echo " "
+         echo "When getting lookup_value from crdm_flex_env"
+      subject_msg="$L_SCRIPTNAME failed "
+      message="When getting lookup_value from crdm_flex_env "
+      send_mail "$message" "$subject_msg" $CRDM_ERR_LIST
+      exit 1
+
+   fi
+   # verify lookup_value exists
+   if [ -z "$V_LOOKUP_VALUE" ]
+      then
+         echo "Could not find lookup_value for $LOOKUP_CODE"
+      subject_msg="$L_SCRIPTNAME failed "
+      message="Could not find lookup_value for $LOOKUP_CODE"
+      send_mail "$message" "$subject_msg" $CRDM_ERR_LIST
+      exit 1
+   fi
+
+   export $2="$V_LOOKUP_VALUE"
+
+   return 0
+}
+

@@ -1,0 +1,44 @@
+#!/bin/ksh
+#*******************************************************************************
+#** Program         :  get_last_run_date
+#**
+#** Original Author :  SANJEEV
+#**
+#** Description     : Function to retrun the last successful run date 
+#**
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ---------- -------- ------------------------------------------------
+#** 07/13/2003 schaudh    Initial Checkin
+#*****************************************************************************
+#-----------------------------------------------------------------
+# Function to retrun the last successful run date 
+#-----------------------------------------------------------------
+function get_last_run_date
+{
+
+   SCRIPT_NAME="$1"
+   STATUS="$2"
+
+   OUTDATA=` sqlplus -s $ORA_CONNECT << EOT 2>&1 | grep OUTDATA | awk -F\| '{print $2}'
+   WHENEVER OSERROR EXIT FAILURE
+   WHENEVER SQLERROR EXIT FAILURE
+   SET HEADING OFF
+   SET TERMOUT OFF
+   SET PAGESIZE 0
+
+   SELECT 'OUTDATA|' || TO_CHAR(Max(TRUNC(end_time))  ,'mm:dd:yyyy:hh24:mi:ss') 
+   FROM mkdm_job_status
+   WHERE status = '$STATUS'
+   AND job_name = ( SELECT job_name FROM mkdm_job_control
+   WHERE script_name = '$SCRIPT_NAME');
+EOT`
+
+  echo "$OUTDATA" 
+  return 0
+}
+
+

@@ -1,0 +1,62 @@
+#!/bin/ksh
+#*******************************************************************************
+#** Program         :  upd_crdm_flex_env
+#**
+#** Original Author :  Gouri Sankar S
+#**
+#** Description     :  Function to update the CRDM_FLEX_ENV table
+#**
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ---------- -------- ------------------------------------------------
+#** 09/12/2003 gsankar  Initial Checkin
+#*****************************************************************************
+
+function upd_crdm_flex_env
+{
+   if [ $# -ne 2 ]; then
+      print "   ERROR - Incorrect parameters ($*) (expected 2)"
+      print "   USAGE: upd_crdm_flex_env lookup_code lookup_value "
+      return 1
+   fi
+
+   LOOKUP_VALUE=$2
+   LOOKUP_CODE=$1
+   V_LOOKUP_VALUE=`sqlplus -s $ORA_CONNECT <<EOT
+
+        whenever oserror exit failure
+        whenever sqlerror exit failure
+        set echo on;
+        update crdm_flex_env
+           set lookup_value= '$LOOKUP_VALUE'
+         where lookup_code = '$LOOKUP_CODE';
+EOT`
+
+   if [ $? -ne 0 ]
+      then
+         echo " "
+         echo "When updating the lookup_value=$LOOKUP_VALUE for the lookup code= $LOOKUP_CODE in crdm_flex_env"
+      subject_msg="$L_SCRIPTNAME failed "
+      message="When updating the lookup_value=$LOOKUP_VALUE for the lookup code= $LOOKUP_CODE in crdm_flex_env"
+      send_mail "$message" "$subject_msg" $CRDM_ERR_LIST
+      exit 1
+
+   fi
+   # verify lookup_value exists
+   if [ "`print $V_LOOKUP_VALUE|sed 's/ //g'`" = "0rowsupdated." ]
+      then
+         echo "Could not find lookup_code = $LOOKUP_CODE for updating crdm_flex_env table"
+      subject_msg="$L_SCRIPTNAME failed "
+      message="Could not find lookup_value = $LOOKUP_CODE for updating crdm_flex_env table"
+      send_mail "$message" "$subject_msg" $CRDM_ERR_LIST
+      exit 1
+   else 
+     echo "crdm_flex_env updated successfully for lookup code = $LOOKUP_CODE "
+     echo "Number Of rows Updated = `print $V_LOOKUP_VALUE| cut -f1 -d ' '`"
+   fi
+
+   return 0
+}

@@ -1,0 +1,56 @@
+#!/bin/ksh
+#*****************************************************************************
+#** Program         : truncate_table
+#** Original Author : Keith Kane
+#**
+#** Description     : Truncate the table whose name is passed as a parameter
+#**                   The parameter to be passed is as follows;
+#**                       1) Table name
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ********** *******  ******************************************************* 
+#** 01/09/2004 kkane    Initial Checkin
+#******************************************************************************
+#******************************************************************************
+#- Function to truncate a table
+#******************************************************************************
+
+function truncate_table
+{
+   sqlplus -s $ORA_CONNECT << SQLEOT
+
+   SET TIMING ON 
+   WHENEVER SQLERROR EXIT FAILURE
+   WHENEVER OSERROR EXIT FAILURE
+
+   define TABLE_NAME=$1
+
+   PROMPT Truncating Table &TABLE_NAME
+
+   PROMPT ************************************************************
+
+   truncate table &TABLE_NAME REUSE STORAGE;
+
+   commit;
+
+   PROMPT Truncated Table &TABLE_NAME
+
+   PROMPT ************************************************************
+
+   quit;
+
+SQLEOT
+
+   if [ $? -ne 0 ]
+   then
+      print "Truncating table $1 failed."
+      return 1
+   else
+      print "Truncating table $1 completed successfully."
+      return 0
+   fi
+
+}

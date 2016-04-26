@@ -1,0 +1,59 @@
+#!/bin/ksh
+#*****************************************************************************
+#** Program         : analyze_index
+#** Original Author : Sakthievel
+#**
+#** Description     : The Generic function to analyze indexes on the table.
+#**                   The parameters to be passed are as shown below:
+#**                       1) Owner name 
+#**                       2) Index name
+#**                       3) Estimate percent
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ********** *******  ******************************************************* 
+#** 09/23/2003 sthrumu  Initial Checkin
+#******************************************************************************
+#******************************************************************************
+#- Function to analyze the indexes.
+#******************************************************************************
+
+function analyze_index
+{
+
+   sqlplus -s $ORA_CONNECT << SQLEOT
+
+   SET TIMING ON 
+   WHENEVER SQLERROR EXIT FAILURE
+   WHENEVER OSERROR EXIT FAILURE
+
+   define OWNER_NAME=$1
+   define INDEX_NAME=$2
+   define ESTIMATE_PERCENT=$3
+
+   PROMPT Analyzing index &INDEX_NAME
+
+   PROMPT ************************************************************
+
+   exec dbms_stats.gather_index_stats('&OWNER_NAME', '&INDEX_NAME', NULL, &ESTIMATE_PERCENT, NULL, NULL, NULL);
+
+   PROMPT Analyzed index &INDEX_NAME
+
+   PROMPT ************************************************************
+
+   quit;
+
+SQLEOT
+
+   if [ $? -ne 0 ]
+   then
+      print "Analyzing index $2 failed."
+      return 1
+   else
+      print "Analyzing index $2 completed successfully."
+      return 0
+   fi
+
+}

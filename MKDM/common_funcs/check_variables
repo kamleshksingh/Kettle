@@ -1,0 +1,33 @@
+#-----------------------------------------------------------------
+# Function to evaluate the contents of a variable
+#-----------------------------------------------------------------
+function check_vars_echo
+{
+   for var in  $*
+   do
+      eval "if [ -z \"\$$var\" ] ; \
+      then \
+         echo \"\$var not set\"; \
+      fi"
+   done
+}
+
+#-----------------------------------------------------------------
+#  Function to validate all variables passed and if
+#-----------------------------------------------------------------
+function check_variables
+{
+   unset check_vars_out
+   check_vars_out=`check_vars_echo $*`
+
+   if [ -n "$check_vars_out" ]
+   then
+      echo "The following variables need to be set before running"
+      echo "$check_vars_out"
+      subject_msg="$L_SCRIPTNAME failed due to unset variables"
+      send_mail "$check_vars_out" "$subject_msg" $ETL_ERR_LIST
+      exit 1
+   fi
+}
+
+

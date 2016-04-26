@@ -1,0 +1,65 @@
+#!/bin/ksh
+#**********************************************************************
+#** Program         :  get_mkdm_job_control
+#**
+#** Original Author :  vxragun
+#**
+#** Description     :  Function to get the LAST_RUN_DATE from the 
+#**                    MKDM_JOB_CONTROL table.The job_name need to be 
+#**                    passed as a parameter.
+#**
+#** Revision History:  Please do not stray from the example provided.
+#**
+#** Modfied    User
+#** Date       ID       Description
+#** MM/DD/YYYY CUID
+#** ---------- -------- -----------------------------------
+#** 07/22/2006 vxragun  Initial Checkin
+#**********************************************************************
+
+function get_mkdm_job_control
+{
+   if [ $# -ne 2 ]; then
+      print "   ERROR - Incorrect parameters ($*) (expected 2)"
+      print "   USAGE: get_mkdm_job_control job_name "
+      return 1
+   fi
+
+   JOB_NAME=$1
+   
+   V_LAST_RUN_DATE=`sqlplus -s $ORA_CONNECT <<EOT 2>&1 | grep LAST_RUN_DATE | awk -F: '{print $2}'
+
+        whenever oserror exit failure
+        whenever sqlerror exit failure
+	set heading off
+	set linesize 500 
+        select  'LAST_RUN_DATE:' ||last_run_date
+        from    mkdm_job_control
+        where   job_name= '$JOB_NAME';
+EOT`
+
+   if [ $? -ne 0 ]
+      then
+         echo " "
+         echo "When getting last_run_date from mkdm_job_control "
+      subject_msg="$L_SCRIPTNAME failed "
+      message="When getting last_run_date from mkdm_job_control "
+      send_mail "$message" "$subject_msg" $MKDM_ERR_LIST
+      exit 1
+   fi
+   
+   #verify last_run_date exists
+   if [ -z "$V_LAST_RUN_DATE" ]
+      then
+         echo "Could not find last_run_date for $JOB_NAME job"
+      subject_msg="$L_SCRIPTNAME failed "
+      message="Could not find last_run_date for $JOB_NAME job"
+      send_mail "$message" "$subject_msg" $MKDM_ERR_LIST
+      exit 1
+   fi
+
+   export $2="$V_LAST_RUN_DATE"
+
+   return 0
+}
+
